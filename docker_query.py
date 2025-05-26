@@ -88,3 +88,48 @@ base_tag = "v1.27.2-k3s1"
 
 newer = find_newer_tags(image, base_tag)
 print("\n".join(newer))
+
+import re
+
+# Precompiled regex pattern to match unstable suffixes
+UNSTABLE_PATTERN = re.compile(r'-(alpha|beta|rc|dev|test|ci|debug)\d*', re.IGNORECASE)
+
+def is_stable_kubernetes_tag(tag: str) -> bool:
+    tag = tag.lower()
+
+    if UNSTABLE_PATTERN.search(tag) or tag == "latest":
+        return False
+    return bool(re.match(r'^v?\d+(\.\d+){0,2}(-k3s\d+)?(-rancher\d+)?$', tag))
+
+
+import pytest
+
+@pytest.mark.parametrize("tag, expected", [
+    # Valid stable tags
+    ("v1.2.3", True),
+    ("1.2.3", True),
+    ("v1.2.3-k3s1", True),
+    ("v1.2.3-k3s1-rancher2", True),
+    ("v1", True),
+    ("1", True),
+    ("1.2", True),
+
+    # Unstable/pre-release tags
+    ("v1.2.3-alpha1", False),
+    ("v1.2.3-beta", False),
+    ("v1.2.3-rc1", False),
+    ("v1.2.3-dev", False),
+    ("v1.2.3-ci", False),
+    ("v1.2.3-test1", False),
+    ("v1.2.3-debug", False),
+    ("latest", False),
+
+    # Edge cases
+    ("v1.2.3-architecture", True),  # contains "rc" substring but is not a match
+    ("v1.2.3-rctest", True),        # same, doesn't match -rc\d*
+    ("v1.2.3foo", False),           # malformed
+    ("garbage", False),             # invalid
+])
+
+def test_is_stable_kubernetes_tag(tag, expected):
+    assert is_stable_kubernetes_tag(tag) == expected
